@@ -1,0 +1,24 @@
+column_name,description,type
+id,Internal record identifier for each observation.,identifier
+customer_age,Age of the customer when the outreach event occurred.,numeric
+occupation_type,Work category associated with the customer.,categorical
+relationship_status,Current household or partnership status.,categorical
+education_background,Reported educational attainment category.,categorical
+has_credit_issue,Indicator of prior credit repayment problems or default history.,categorical/binary
+mortgage_status,Indicator showing whether the customer has a home loan.,categorical/binary
+personal_loan_status,Indicator showing whether the customer has a personal borrowing product.,categorical/binary
+last_contact_month,Calendar month of the most recent outreach attempt.,categorical
+day_of_week,Weekday on which the most recent contact took place.,categorical
+contact_time_minutes,"Length of the latest contact interaction, measured in minutes.",numeric
+contact_attempt_count,Number of outreach attempts made during the current campaign cycle.,numeric
+days_since_prior_contact,Elapsed days since the customer was last contacted; special negative value indicates no earlier contact.,numeric
+prior_contact_count,Count of customer contacts that occurred before the current campaign cycle.,numeric
+prior_outcome_status,Recorded result of the most recent earlier outreach event.,categorical
+economic_activity_change,Recent movement in a broader business or market activity indicator at the time of contact.,numeric
+consumer_price_index,Price-level indicator associated with the period in which the contact occurred.,numeric
+consumer_confidence_index,Confidence-style economic sentiment measure linked to the contact period.,numeric
+reference_interest_rate,Reference rate associated with the time period of the outreach.,numeric
+employment_level_index,Aggregate employment-related index associated with the contact period.,numeric
+accepted_offer,Outcome variable indicating whether the customer accepted the offered product.,binary
+is_repeat_customer,Indicator showing whether this customer had been contacted previously.,binary
+recent_contact_flag,Indicator showing whether a prior contact happened recently enough to meet the assigned recency rule.,binary
