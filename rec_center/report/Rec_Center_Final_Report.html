@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Rec_Center_Final_Report</title>
+  <style>
+    html {
+      line-height: 1.5;
+      font-family: Georgia, serif;
+      font-size: 20px;
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      word-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 1em;
+      }
+    }
+    @media print {
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, 'Lucida Console', Consolas, monospace;
+      font-size: 85%;
+      margin: 0;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      background-color: #1a1a1a;
+      border: none;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    span.underline{text-decoration: underline;}
+    div.column{display: inline-block; vertical-align: top; width: 50%;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    ul.task-list{list-style: none;}
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
+</head>
+<body>
+<h1 id="cal-poly-rec-center-usage-prediction-final-report">Cal Poly Rec Center Usage Prediction — Final Report</h1>
+<p><strong>Advanced Machine Learning Final Project</strong></p>
+<hr />
+<h2 id="problem-statement">1. Problem Statement</h2>
+<p>The Cal Poly Recreation Center is one of the most heavily used student facilities on campus, yet students often have no reliable way to know how crowded it will be before they arrive. Long lines, full weight rooms, and packed cardio areas create frustration and can discourage students from using a resource they already pay for.</p>
+<p>This project addresses a practical question: <strong>Can we predict how busy the Rec Center (and specific areas within it) will be at a given date and time?</strong></p>
+<p>We built two complementary prediction tools:</p>
+<ol type="1">
+<li><strong>Regression model</strong> — estimates exact utilization (occupancy relative to capacity, on a 0–1 scale).</li>
+<li><strong>Classification model</strong> — labels each time slot as <strong>low</strong>, <strong>medium</strong>, or <strong>high</strong> usage for easy student-facing recommendations.</li>
+</ol>
+<p>These predictions can support student planning (“When is the best time to go?”), Rec Center staffing decisions, and future integration with a mobile app or website.</p>
+<hr />
+<h2 id="data-description">2. Data Description</h2>
+<h3 id="source-and-coverage">Source and coverage</h3>
+<p>The data comes from <strong>Occuspace</strong>, a occupancy-analytics platform that estimates how many people are in tracked spaces. We used Cal Poly Rec Center exports collected every <strong>30 minutes</strong> from <strong>6:00 AM to 11:30 PM</strong>, spanning <strong>May 2023 through April 2026</strong>.</p>
+<p>After cleaning, the modeling dataset contains <strong>223,283 observations</strong> across <strong>six locations</strong>:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Location</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Rec Center (overall)</td>
+<td>Whole-facility crowding</td>
+</tr>
+<tr class="even">
+<td>1st Floor</td>
+<td>General floor traffic</td>
+</tr>
+<tr class="odd">
+<td>2nd Floor</td>
+<td>General floor traffic</td>
+</tr>
+<tr class="even">
+<td>Lower Exercise Room</td>
+<td>Strength/cardio area</td>
+</tr>
+<tr class="odd">
+<td>Upper Exercise Room</td>
+<td>Strength/cardio area</td>
+</tr>
+<tr class="even">
+<td>Track Exercise Room</td>
+<td>Track and adjacent equipment</td>
+</tr>
+</tbody>
+</table>
+<h3 id="key-variables">Key variables</h3>
+<ul>
+<li><strong>Average Utilization</strong> (primary target): average occupancy divided by listed capacity. A value of 0.50 means the space is about half full; 1.0 means at capacity.</li>
+<li><strong>Time predictors</strong>: hour of day, day of week, month, weekend indicator.</li>
+<li><strong>Location</strong>: which area of the Rec Center is being measured.</li>
+<li><strong>Capacity</strong>: maximum listed occupancy for each space (used for context, not as a standalone predictor for utilization).</li>
+</ul>
+<h3 id="data-quality-notes">Data quality notes</h3>
+<ul>
+<li>No missing values in the original export columns.</li>
+<li><strong>216 duplicate</strong> location/timestamp pairs were removed.</li>
+<li><strong>22,069 rows</strong> had average utilization above 1.0 (Occuspace estimated more people than listed capacity). We retained these observations but <strong>capped utilization at 1.0</strong> for modeling, since values above 100% likely reflect sensor or capacity-listing error rather than a fundamentally different crowding pattern.</li>
+</ul>
+<hr />
+<h2 id="exploratory-analysis">3. Exploratory Analysis</h2>
+<p>Our analysis of three years of usage data revealed clear, actionable patterns.</p>
+<h3 id="overall-utilization">Overall utilization</h3>
+<p>Average utilization across all locations and times is <strong>0.44</strong> (44% of capacity), with a median of <strong>0.35</strong>. The distribution is right-skewed: most intervals are moderately busy, but a meaningful share of periods are very crowded.</p>
+<figure>
+<img src="../figures/average_utilization_distribution.png" alt="Distribution of Average Utilization" /><figcaption aria-hidden="true">Distribution of Average Utilization</figcaption>
+</figure>
+<h3 id="time-of-day-patterns">Time-of-day patterns</h3>
+<p>Usage is lowest in the early morning and late evening. Crowding builds through the afternoon and peaks between <strong>4:00 PM and 6:00 PM</strong>, with <strong>5:00 PM</strong> showing the highest average utilization.</p>
+<figure>
+<img src="../figures/utilization_by_hour.png" alt="Average Utilization by Hour" /><figcaption aria-hidden="true">Average Utilization by Hour</figcaption>
+</figure>
+<h3 id="day-of-week-patterns">Day-of-week patterns</h3>
+<p><strong>Monday and Tuesday</strong> are the busiest days, followed by Wednesday. <strong>Saturday and Sunday</strong> are consistently quieter — roughly 15–20% lower average utilization than midweek days.</p>
+<figure>
+<img src="../figures/utilization_by_weekday.png" alt="Average Utilization by Weekday" /><figcaption aria-hidden="true">Average Utilization by Weekday</figcaption>
+</figure>
+<h3 id="location-differences">Location differences</h3>
+<p>Not all areas are equally crowded. The <strong>Track Exercise Room</strong> averages <strong>0.58</strong> utilization, followed by the <strong>2nd Floor</strong> (0.52) and <strong>Upper Exercise Room</strong> (0.49). The <strong>1st Floor</strong> and <strong>Lower Exercise Room</strong> are the least crowded at roughly <strong>0.31</strong> each — useful alternatives when popular areas are full.</p>
+<figure>
+<img src="../figures/utilization_by_location.png" alt="Average Utilization by Location" /><figcaption aria-hidden="true">Average Utilization by Location</figcaption>
+</figure>
+<h3 id="seasonal-and-academic-calendar-effects">Seasonal and academic calendar effects</h3>
+<p>Monthly trends show visible dips during <strong>summer</strong> and <strong>winter break</strong>, and higher usage during active academic quarters. August 2023 and summer months consistently show lower utilization, while May 2024 showed the highest monthly average — likely reflecting pre-finals and end-of-quarter activity.</p>
+<figure>
+<img src="../figures/monthly_utilization_trend.png" alt="Monthly Utilization Trend" /><figcaption aria-hidden="true">Monthly Utilization Trend</figcaption>
+</figure>
+<figure>
+<img src="../figures/utilization_by_academic_period.png" alt="Utilization by Academic Period" /><figcaption aria-hidden="true">Utilization by Academic Period</figcaption>
+</figure>
+<h3 id="weekdayhour-interactions">Weekday–hour interactions</h3>
+<p>A heatmap of weekday versus hour confirms that <strong>weekday late afternoons</strong> are the hottest windows, while <strong>weekend mornings</strong> and <strong>late evenings</strong> are consistently quieter. These interaction patterns motivated our use of flexible, nonlinear models rather than simple linear formulas.</p>
+<figure>
+<img src="../figures/weekday_hour_heatmap.png" alt="Weekday-Hour Heatmap" /><figcaption aria-hidden="true">Weekday-Hour Heatmap</figcaption>
+</figure>
+<hr />
+<h2 id="modeling-approach">4. Modeling Approach</h2>
+<h3 id="how-we-trained-and-tested">How we trained and tested</h3>
+<p>We treated this as a <strong>forecasting problem</strong>: the model learns from past usage and predicts future periods it has never seen. Data was split by time:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Split</th>
+<th>Period</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Training</td>
+<td>May 2023 – June 2024</td>
+<td>Learn historical patterns</td>
+</tr>
+<tr class="even">
+<td>Validation</td>
+<td>July – December 2024</td>
+<td>Tune model settings</td>
+</tr>
+<tr class="odd">
+<td>Test</td>
+<td>January 2025 – April 2026</td>
+<td>Final unbiased evaluation</td>
+</tr>
+</tbody>
+</table>
+<p>We deliberately avoided random train/test splits, which would mix future data into training and overstate accuracy.</p>
+<h3 id="features-used">Features used</h3>
+<p>Beyond raw time and location fields, we engineered:</p>
+<ul>
+<li><strong>Weekend indicator</strong> and <strong>cyclical time encodings</strong> (sin/cos transforms for hour and month)</li>
+<li><strong>Academic calendar flags</strong>: summer, winter break, spring break, and finals week (derived from Cal Poly’s academic calendar)</li>
+</ul>
+<p>We excluded peak occupancy and peak utilization from predictors because they describe the same 30-minute window as the target and would inflate performance artificially.</p>
+<h3 id="models-compared">Models compared</h3>
+<p><strong>Regression (predict exact utilization):</strong></p>
+<table>
+<thead>
+<tr class="header">
+<th>Model</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Historical mean baseline</td>
+<td>Average utilization by location × weekday × hour</td>
+</tr>
+<tr class="even">
+<td>Ridge regression</td>
+<td>Linear model with regularization</td>
+</tr>
+<tr class="odd">
+<td>Random Forest</td>
+<td>Ensemble of decision trees</td>
+</tr>
+<tr class="even">
+<td>LightGBM / CatBoost</td>
+<td>Gradient boosting (state-of-the-art for tabular data)</td>
+</tr>
+<tr class="odd">
+<td>Keras MLP</td>
+<td>Neural network with two hidden layers</td>
+</tr>
+<tr class="even">
+<td>Stacking ensemble</td>
+<td>Combines LightGBM, CatBoost, and MLP via a meta-learner</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Classification (predict low / medium / high):</strong></p>
+<table>
+<thead>
+<tr class="header">
+<th>Category</th>
+<th>Threshold</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Low</td>
+<td>Utilization below 0.30</td>
+</tr>
+<tr class="even">
+<td>Medium</td>
+<td>0.30 – 0.60</td>
+</tr>
+<tr class="odd">
+<td>High</td>
+<td>Above 0.60</td>
+</tr>
+</tbody>
+</table>
+<p>These cutoffs align with the data median (0.35) and mean (0.44), giving intuitive “quiet / moderate / crowded” labels.</p>
+<p>Models compared: logistic regression, random forest, LightGBM, CatBoost, and a Keras neural network classifier.</p>
+<p>All models were tuned on the validation period before final test evaluation.</p>
+<hr />
+<h2 id="results-and-model-comparison">5. Results and Model Comparison</h2>
+<h3 id="regression-results-test-set">Regression results (test set)</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Model</th>
+<th style="text-align: right;">RMSE</th>
+<th style="text-align: right;">MAE</th>
+<th style="text-align: right;">R²</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Stacking ensemble</strong></td>
+<td style="text-align: right;"><strong>0.123</strong></td>
+<td style="text-align: right;"><strong>0.089</strong></td>
+<td style="text-align: right;"><strong>0.872</strong></td>
+</tr>
+<tr class="even">
+<td>CatBoost</td>
+<td style="text-align: right;">0.125</td>
+<td style="text-align: right;">0.088</td>
+<td style="text-align: right;">0.867</td>
+</tr>
+<tr class="odd">
+<td>LightGBM</td>
+<td style="text-align: right;">0.128</td>
+<td style="text-align: right;">0.088</td>
+<td style="text-align: right;">0.862</td>
+</tr>
+<tr class="even">
+<td>Random Forest</td>
+<td style="text-align: right;">0.134</td>
+<td style="text-align: right;">0.090</td>
+<td style="text-align: right;">0.848</td>
+</tr>
+<tr class="odd">
+<td>Keras MLP (neural network)</td>
+<td style="text-align: right;">0.143</td>
+<td style="text-align: right;">0.100</td>
+<td style="text-align: right;">0.826</td>
+</tr>
+<tr class="even">
+<td>Ridge regression</td>
+<td style="text-align: right;">0.219</td>
+<td style="text-align: right;">0.175</td>
+<td style="text-align: right;">0.593</td>
+</tr>
+<tr class="odd">
+<td>Historical mean baseline</td>
+<td style="text-align: right;">0.289</td>
+<td style="text-align: right;">0.247</td>
+<td style="text-align: right;">0.291</td>
+</tr>
+</tbody>
+</table>
+<p><strong>How to read these metrics:</strong></p>
+<ul>
+<li><strong>RMSE (root mean squared error)</strong> — our primary metric. It penalizes large misses heavily, which matters most during peak hours when students care most about accuracy. An RMSE of 0.123 means typical prediction errors are roughly 12 percentage points of utilization.</li>
+<li><strong>MAE (mean absolute error)</strong> — easier to interpret: on average, predictions are off by about <strong>9 percentage points</strong> for the best models.</li>
+<li><strong>R²</strong> — share of variance explained. Our best model explains about <strong>87%</strong> of utilization variation on unseen future data.</li>
+</ul>
+<h3 id="neural-network-vs.-non-neural-network">Neural network vs. non-neural network</h3>
+<p>Tree-based models (LightGBM, CatBoost, Random Forest) outperformed the neural network on this dataset. This is a common finding for structured tabular data with strong categorical interactions (location × hour × weekday). The neural network still beat linear baselines by a wide margin but did not justify its added complexity over gradient boosting alone.</p>
+<p>The stacking ensemble achieved a modest improvement over the best individual model (RMSE 0.123 vs. 0.125 for CatBoost alone), suggesting some benefit from combining diverse model types, though the gain is small relative to the engineering effort.</p>
+<figure>
+<img src="../figures/peak_hour_pred_vs_actual.png" alt="Peak Hour Predictions" /><figcaption aria-hidden="true">Peak Hour Predictions</figcaption>
+</figure>
+<h3 id="classification-results-test-set">Classification results (test set)</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Model</th>
+<th style="text-align: right;">Accuracy</th>
+<th style="text-align: right;">Macro-F1</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>CatBoost</strong></td>
+<td style="text-align: right;"><strong>81.9%</strong></td>
+<td style="text-align: right;"><strong>0.793</strong></td>
+</tr>
+<tr class="even">
+<td>LightGBM</td>
+<td style="text-align: right;">81.3%</td>
+<td style="text-align: right;">0.787</td>
+</tr>
+<tr class="odd">
+<td>Random Forest</td>
+<td style="text-align: right;">81.3%</td>
+<td style="text-align: right;">0.784</td>
+</tr>
+<tr class="even">
+<td>Keras MLP</td>
+<td style="text-align: right;">80.4%</td>
+<td style="text-align: right;">0.779</td>
+</tr>
+<tr class="odd">
+<td>Logistic regression</td>
+<td style="text-align: right;">70.9%</td>
+<td style="text-align: right;">0.658</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Macro-F1</strong> is our primary classification metric because it weights low, medium, and high usage classes equally — important since high-crowd periods are less frequent but most valuable to predict correctly.</p>
+<p>CatBoost correctly classifies usage level about <strong>82%</strong> of the time on held-out future data, with strong performance across all three categories.</p>
+<figure>
+<img src="../figures/classification_confusion_matrix.png" alt="Classification Confusion Matrix" /><figcaption aria-hidden="true">Classification Confusion Matrix</figcaption>
+</figure>
+<h3 id="feature-impact-academic-calendar">Feature impact: academic calendar</h3>
+<p>Adding academic calendar flags (summer, breaks, finals) improved LightGBM regression RMSE from <strong>0.145 to 0.128</strong> on the test set — a meaningful gain that confirms campus schedule effects are real and worth modeling.</p>
+<hr />
+<h2 id="conclusions-and-recommendations">6. Conclusions and Recommendations</h2>
+<h3 id="key-findings">Key findings</h3>
+<ol type="1">
+<li><strong>Rec Center usage is highly predictable</strong> from time, location, and calendar context. Our best model achieves ~9-point average error on a 0–1 scale for future time periods.</li>
+<li><strong>Peak crowding is concentrated</strong> on weekday afternoons (4–6 PM), especially Monday through Wednesday.</li>
+<li><strong>Location matters significantly.</strong> The Track Exercise Room and 2nd Floor run 60–80% higher utilization than the 1st Floor and Lower Exercise Room.</li>
+<li><strong>Summer and breaks are reliably quieter</strong>, making them good times for students who prefer less crowded workouts.</li>
+<li><strong>Gradient boosting models are the practical choice</strong> for deployment; neural networks and ensembles offer diminishing returns on this dataset.</li>
+</ol>
+<h3 id="recommendations-for-rec-center-staff-and-students">Recommendations for Rec Center staff and students</h3>
+<p><strong>For students:</strong> - Visit <strong>early morning (before 10 AM)</strong> or <strong>weekends</strong> for the lowest crowding. - Avoid <strong>Monday–Wednesday, 4:00–6:00 PM</strong> if possible. - If the Track Room or 2nd Floor is full, try the <strong>Lower Exercise Room or 1st Floor</strong> — they average roughly half the utilization.</p>
+<p><strong>For Rec Center operations:</strong> - Use predicted peak windows to <strong>align staffing and equipment availability</strong> with expected demand. - Publish a simple <strong>low / medium / high forecast</strong> by location and hour — the classification model supports this directly. - Consider integrating predictions into the <strong>Rec Center app or website</strong> as a “busyness forecast” feature.</p>
+<h3 id="limitations">Limitations</h3>
+<ul>
+<li>Occuspace estimates are not exact headcounts; utilization above 100% suggests capacity list mismatches or sensor noise.</li>
+<li>The model reflects historical patterns and may not immediately capture sudden changes (new equipment, policy changes, or major campus events).</li>
+<li>Predictions are most reliable for <strong>regular recurring patterns</strong>; one-off events are not captured.</li>
+</ul>
+<h3 id="next-steps">Next steps</h3>
+<ul>
+<li>Deploy a weekly-updated forecast dashboard by location and hour.</li>
+<li>Add real-time Occuspace API integration for live + predicted views.</li>
+<li>Re-train annually to incorporate new academic calendar years and facility changes.</li>
+</ul>
+<hr />
+<p><em>This report accompanies the full reproducible analysis in the <a href="../README.md">Rec Center GitHub repository</a>.</em></p>
+</body>
+</html>
