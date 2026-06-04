@@ -54,6 +54,31 @@ LOCATION_DISPLAY_NAMES = {
     GENERAL_LOCATION: GENERAL_LOCATION_LABEL,
 }
 
+WEEKDAY_ORDER = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+]
+
+CORRELATION_LABELS = {
+    "hour": "Hour of Day",
+    "day_of_week": "Day of Week",
+    "month": "Month",
+    "is_weekend": "Weekend",
+    "is_summer": "Summer",
+    "is_finals_week": "Finals Week",
+    "average_utilization": "Average Utilization",
+}
+
+
+def weekday_name_series(timestamp: pd.Series) -> pd.Series:
+    """Calendar weekday names from timestamps (Monday–Sunday)."""
+    return timestamp.dt.day_name()
+
 REC_CENTER_OPEN = time(6, 0)
 REC_CENTER_CLOSE = time(23, 30)
 SLOT_MINUTES = 30

@@ -139,29 +139,33 @@ def main():
     label_encoder = LabelEncoder()
     label_encoder.fit(cleaned["usage_level"].astype(str))
     y_test_cls = label_encoder.transform(test_df["usage_level"].astype(str))
-    cls_params = metrics["classification"]["lightgbm"]["params"]
-    lgbm_cls = Pipeline(
+    cls_params = metrics["classification"]["catboost"]["params"]
+    cat_cls = Pipeline(
         [
             ("prep", make_preprocessor(get_feature_frame(train_df).columns.tolist())),
-            ("model", LGBMClassifier(random_state=RANDOM_STATE, verbose=-1, **_strip_params(cls_params))),
+            ("model", CatBoostClassifier(random_state=RANDOM_STATE, verbose=0, **_strip_params(cls_params))),
         ]
     )
-    lgbm_cls.named_steps["prep"].fit(get_feature_frame(train_df))
-    lgbm_cls.fit(
+    cat_cls.named_steps["prep"].fit(get_feature_frame(train_df))
+    cat_cls.fit(
         get_feature_frame(train_df),
         label_encoder.transform(train_df["usage_level"].astype(str)),
     )
-    lgbm_pred = lgbm_cls.predict(get_feature_frame(test_df))
-    fig, ax = plt.subplots(figsize=(5, 4))
+    cat_pred = cat_cls.predict(get_feature_frame(test_df))
+    class_order = ["low", "medium", "high"]
+    class_labels_display = ["Low", "Medium", "High"]
+    fig, ax = plt.subplots(figsize=(6, 5))
     ConfusionMatrixDisplay.from_predictions(
         y_test_cls,
-        lgbm_pred,
-        display_labels=list(label_encoder.classes_),
+        cat_pred,
+        labels=[list(label_encoder.classes_).index(c) for c in class_order],
+        display_labels=class_labels_display,
         cmap="Blues",
         ax=ax,
         colorbar=False,
+        values_format="d",
     )
-    ax.set_title("LightGBM Confusion Matrix (Test Set)")
+    ax.set_title("CatBoost Confusion Matrix (Test Set)")
     fig.tight_layout()
     fig.savefig(figures_path("classification_confusion_matrix.png"), dpi=150)
     plt.close(fig)

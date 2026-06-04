@@ -134,29 +134,95 @@ def parse_table(lines: list[str]) -> tuple[list[str], list[list[str]]]:
     return headers, rows
 
 
+def protect_cell_text(text: str) -> str:
+    """Keep ordinal floor labels (e.g. 2nd Floor) on one line in PDF cells."""
+    return re.sub(
+        r"(\d+(?:st|nd|rd|th))\s+",
+        lambda m: m.group(1) + "\xa0",
+        text,
+        flags=re.I,
+    )
+
+
+def table_col_widths(headers: list[str]) -> list[float]:
+    col_count = len(headers)
+    clean_headers = [re.sub(r"\*\*|\*", "", h).strip() for h in headers]
+    if col_count == 5 and "Calendar span" in clean_headers:
+        weights = [28, 32, 12, 14, 14]
+        scale = CONTENT_W / sum(weights)
+        return [w * scale for w in weights]
+    if col_count == 2 and clean_headers[0].lower() == "location":
+        return [CONTENT_W * 0.38, CONTENT_W * 0.62]
+    return [CONTENT_W / col_count] * col_count
+
+
+def table_cell_align(col_idx: int, headers: list[str]) -> str:
+    clean_headers = [re.sub(r"\*\*|\*", "", h).strip() for h in headers]
+    if len(headers) == 5 and "Calendar span" in clean_headers and col_idx <= 1:
+        return "L"
+    if len(headers) >= 5 and col_idx == 0:
+        return "L"
+    return "C"
+
+
 def draw_table(pdf: FPDF, headers: list[str], rows: list[list[str]]):
     col_count = len(headers)
-    col_w = CONTENT_W / col_count
+    col_widths = table_col_widths(headers)
+    font_size = 8 if col_count >= 5 else 9
+    line_h = 4.5 if col_count >= 5 else 5.0
+    header_h = 7 if col_count >= 5 else 7
 
     # Header row
     pdf.set_fill_color(*DARK_BLUE)
     pdf.set_text_color(255, 255, 255)
-    pdf.set_font("Helvetica", "B", 9)
-    for h in headers:
-        clean = re.sub(r"\*\*|\*", "", h)
-        pdf.cell(col_w, 7, clean, border=0, align="C", fill=True)
-    pdf.ln()
+    pdf.set_font("Helvetica", "B", font_size)
+    x0 = pdf.get_x()
+    y0 = pdf.get_y()
+    for idx, h in enumerate(headers):
+        clean = protect_cell_text(re.sub(r"\*\*|\*", "", h))
+        pdf.set_xy(x0 + sum(col_widths[:idx]), y0)
+        pdf.multi_cell(
+            col_widths[idx],
+            header_h,
+            clean,
+            border=0,
+            align=table_cell_align(idx, headers),
+            fill=True,
+        )
+    pdf.set_xy(x0, y0 + header_h)
 
     # Data rows
     for i, row in enumerate(rows):
         fill = i % 2 == 0
         pdf.set_fill_color(*LIGHT_GRAY) if fill else pdf.set_fill_color(255, 255, 255)
         pdf.set_text_color(*BLACK)
-        pdf.set_font("Helvetica", "", 9)
-        for cell in row:
-            clean = re.sub(r"\*\*|\*", "", cell)
-            pdf.cell(col_w, 6, clean, border=0, align="C", fill=True)
-        pdf.ln()
+        pdf.set_font("Helvetica", "", font_size)
+
+        cells = [protect_cell_text(re.sub(r"\*\*|\*", "", cell)) for cell in row]
+        row_heights = []
+        for idx, cell in enumerate(cells):
+            wrapped = pdf.multi_cell(
+                col_widths[idx], line_h, cell, dry_run=True, output="LINES"
+            )
+            row_heights.append(max(1, len(wrapped)) * line_h)
+        row_h = max(row_heights)
+
+        if pdf.get_y() + row_h > pdf.page_break_trigger:
+            pdf.add_page()
+        y_row = pdf.get_y()
+        x_row = pdf.get_x()
+        for idx, cell in enumerate(cells):
+            pdf.set_xy(x_row + sum(col_widths[:idx]), y_row)
+            pdf.multi_cell(
+                col_widths[idx],
+                line_h,
+                cell,
+                border=0,
+                align=table_cell_align(idx, headers),
+                fill=True,
+            )
+        pdf.set_xy(x_row, y_row + row_h)
+
     pdf.ln(3)
 
 

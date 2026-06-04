@@ -35,7 +35,9 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
 from rec_center_utils import (  # noqa: E402
+    CORRELATION_LABELS,
     RANDOM_STATE,
+    WEEKDAY_ORDER,
     add_academic_calendar_features,
     add_cyclical_features,
     clean_data,
@@ -43,6 +45,7 @@ from rec_center_utils import (  # noqa: E402
     get_feature_frame,
     load_raw_data,
     save_clean_data,
+    weekday_name_series,
 )
 
 sns.set_theme(style="whitegrid", context="notebook")
@@ -318,6 +321,7 @@ def run_eda(df: pd.DataFrame):
     sns.histplot(df["average_utilization"], bins=50, kde=True, ax=ax)
     ax.set_title("Distribution of Average Utilization")
     ax.set_xlabel("Average Utilization")
+    ax.set_ylabel("Count")
     fig.tight_layout()
     fig.savefig(figures_path("average_utilization_distribution.png"), dpi=150)
     plt.close(fig)
@@ -326,14 +330,25 @@ def run_eda(df: pd.DataFrame):
     hourly = df.groupby("hour")["average_utilization"].mean().reset_index()
     sns.barplot(data=hourly, x="hour", y="average_utilization", ax=ax, color="#4C72B0")
     ax.set_title("Average Utilization by Hour of Day")
+    ax.set_xlabel("Hour of Day")
+    ax.set_ylabel("Average Utilization")
     fig.tight_layout()
     fig.savefig(figures_path("utilization_by_hour.png"), dpi=150)
     plt.close(fig)
 
-    fig, ax = plt.subplots(figsize=(7, 4))
-    weekday = df.groupby("day_of_week")["average_utilization"].mean().reset_index()
-    sns.barplot(data=weekday, x="day_of_week", y="average_utilization", ax=ax, color="#55A868")
+    fig, ax = plt.subplots(figsize=(8, 4))
+    weekday = (
+        df.assign(weekday_name=weekday_name_series(df["timestamp"]))
+        .groupby("weekday_name", observed=True)["average_utilization"]
+        .mean()
+        .reindex(WEEKDAY_ORDER)
+        .reset_index()
+    )
+    sns.barplot(data=weekday, x="weekday_name", y="average_utilization", ax=ax, color="#55A868")
     ax.set_title("Average Utilization by Day of Week")
+    ax.set_xlabel("Day of Week")
+    ax.set_ylabel("Average Utilization")
+    plt.setp(ax.get_xticklabels(), rotation=30, ha="right")
     fig.tight_layout()
     fig.savefig(figures_path("utilization_by_weekday.png"), dpi=150)
     plt.close(fig)
@@ -342,6 +357,8 @@ def run_eda(df: pd.DataFrame):
     loc = df.groupby("location")["average_utilization"].mean().sort_values(ascending=False).reset_index()
     sns.barplot(data=loc, y="location", x="average_utilization", ax=ax, color="#C44E52")
     ax.set_title("Average Utilization by Location")
+    ax.set_xlabel("Average Utilization")
+    ax.set_ylabel("Location")
     fig.tight_layout()
     fig.savefig(figures_path("utilization_by_location.png"), dpi=150)
     plt.close(fig)
@@ -357,15 +374,18 @@ def run_eda(df: pd.DataFrame):
     fig.savefig(figures_path("monthly_utilization_trend.png"), dpi=150)
     plt.close(fig)
 
-    pivot = df.pivot_table(
+    df_heat = df.assign(weekday_name=weekday_name_series(df["timestamp"]))
+    pivot = df_heat.pivot_table(
         values="average_utilization",
-        index="day_of_week",
+        index="weekday_name",
         columns="hour",
         aggfunc="mean",
-    )
+    ).reindex(WEEKDAY_ORDER)
     fig, ax = plt.subplots(figsize=(12, 4))
     sns.heatmap(pivot, cmap="YlOrRd", ax=ax)
     ax.set_title("Average Utilization Heatmap by Weekday and Hour")
+    ax.set_xlabel("Hour of Day")
+    ax.set_ylabel("Day of Week")
     fig.tight_layout()
     fig.savefig(figures_path("weekday_hour_heatmap.png"), dpi=150)
     plt.close(fig)
@@ -382,6 +402,8 @@ def run_eda(df: pd.DataFrame):
         palette="Set2",
     )
     ax.set_title("Utilization by Academic Period")
+    ax.set_xlabel("Academic Period")
+    ax.set_ylabel("Average Utilization")
     fig.tight_layout()
     fig.savefig(figures_path("utilization_by_academic_period.png"), dpi=150)
     plt.close(fig)
@@ -395,8 +417,9 @@ def run_eda(df: pd.DataFrame):
         "is_finals_week",
         "average_utilization",
     ]
+    corr = df[corr_cols].corr().rename(index=CORRELATION_LABELS, columns=CORRELATION_LABELS)
     fig, ax = plt.subplots(figsize=(7, 5))
-    sns.heatmap(df[corr_cols].corr(), annot=True, fmt=".2f", cmap="coolwarm", ax=ax)
+    sns.heatmap(corr, annot=True, fmt=".2f", cmap="coolwarm", ax=ax)
     ax.set_title("Feature Correlation Heatmap")
     fig.tight_layout()
     fig.savefig(figures_path("feature_correlation_heatmap.png"), dpi=150)
@@ -700,16 +723,20 @@ def main():
         "test": eval_classification(y_test_cls, nn_cls_pred),
     }
 
-    fig, ax = plt.subplots(figsize=(5, 4))
+    fig, ax = plt.subplots(figsize=(6, 5))
+    class_order = ["low", "medium", "high"]
+    class_labels_display = ["Low", "Medium", "High"]
     ConfusionMatrixDisplay.from_predictions(
         y_test_cls,
-        lgbm_cls_pred,
-        display_labels=class_labels,
+        cat_cls_pred,
+        labels=[list(label_encoder.classes_).index(c) for c in class_order],
+        display_labels=class_labels_display,
         cmap="Blues",
         ax=ax,
         colorbar=False,
+        values_format="d",
     )
-    ax.set_title("LightGBM Confusion Matrix (Test Set)")
+    ax.set_title("CatBoost Confusion Matrix (Test Set)")
     fig.tight_layout()
     fig.savefig(figures_path("classification_confusion_matrix.png"), dpi=150)
     plt.close(fig)

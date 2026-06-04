@@ -25,7 +25,7 @@ These predictions can support student planning ("When is the best time to go?"),
 
 ### Source and coverage
 
-The data comes from **Occuspace**, a occupancy-analytics platform that estimates how many people are in tracked spaces. We used Cal Poly Rec Center exports collected every **30 minutes** from **6:00 AM to 11:30 PM**, spanning **May 2023 through April 2026**.
+The data comes from **Occuspace**, an occupancy-analytics platform that estimates how many people are in tracked spaces. We used Cal Poly Rec Center exports collected every **30 minutes** from **6:00 AM to 11:30 PM**, spanning **May 2023 through April 2026**.
 
 After cleaning, the modeling dataset contains **223,283 observations** across **six locations**:
 
@@ -71,7 +71,7 @@ Usage is lowest in the early morning and late evening. Crowding builds through t
 
 ### Day-of-week patterns
 
-**Monday and Tuesday** are the busiest days, followed by Wednesday. **Saturday and Sunday** are consistently quieter — roughly 15–20% lower average utilization than midweek days.
+**Monday and Tuesday** are the busiest days, followed by Wednesday. **Saturday and Sunday** are consistently quieter — roughly 15–20% lower average utilization than midweek days. Weekday labels in the chart follow the standard Monday-through-Sunday calendar order.
 
 ![Average Utilization by Weekday](../figures/utilization_by_weekday.png)
 
@@ -106,14 +106,14 @@ We treated this as a **forecasting problem**: the model learns from past usage a
 | Split | Calendar span | Approx. months | Observations | Purpose |
 |---|---|---:|---:|---|
 | Training | May 2023 – June 2024 | ~14 | 82,679 | Learn historical patterns |
-| Validation | July – December 2024 | 6 | 39,596 | Tune and confirm model settings |
-| Test | January 2025 – April 2026 | ~16 | 101,008 | Final unbiased evaluation |
+| Validation | July – Dec 2024 | 6 | 39,596 | Tune and confirm model settings |
+| Test | Jan 2025 – Apr 2026 | ~16 | 101,008 | Final unbiased evaluation |
 
 We deliberately avoided random train/test splits, which would mix future data into training and overstate accuracy.
 
-**Why is the test window longer than training?** The test period includes all data after validation through the end of our export (April 2026). Holding out a large block of future months gives a stable evaluation across two full academic years. The six-month validation window sits between train and test so hyperparameters are chosen on recent-but-not-future data.
+**Why is the test window longer than training?** The test period includes all data after validation through the end of our export (April 2026). The test set is larger than training because all post-validation data through April 2026 was reserved for final evaluation rather than discarded. Holding out the full January 2025 to April 2026 period gives a large, future-facing test set that covers multiple academic terms and seasonal patterns. The six-month validation window sits between train and test so hyperparameters are chosen on recent-but-not-future data.
 
-**Would a longer training window help?** We ran a sensitivity check: retraining CatBoost on train + validation (May 2023 – December 2024) with the same tuned settings improved test RMSE from **0.125 to 0.113** (~1.2 percentage points). That is a meaningful but modest gain. We kept the shorter training window for the primary results because it preserves an independent validation set for tuning; in production, we would retrain on all available history after each tuning cycle.
+**Would a longer training window help?** As a supplementary check, extending training through December 2024 improved test RMSE slightly (**0.125 to 0.113**). We report results from the standard train/validation/test split because it preserves a dedicated tuning window; in production, models would be retrained on all available history after settings are chosen.
 
 ![Training Window Sensitivity](../figures/train_window_sensitivity.png)
 
@@ -147,27 +147,23 @@ We excluded peak occupancy and peak utilization from predictors because they des
 | Medium | 0.30 – 0.60 |
 | High | Above 0.60 |
 
-These cutoffs align with the data median (0.35) and mean (0.44), giving intuitive "quiet / moderate / crowded" labels.
+These cutoffs align with the data median (0.35) and mean (0.44), giving intuitive "quiet / moderate / crowded" labels. These thresholds were chosen to create practical student-facing categories: below 30% generally indicates a quiet facility, 30–60% reflects moderate use, and above 60% represents periods where students are more likely to experience crowding.
 
 Models compared: logistic regression, random forest, LightGBM, CatBoost, and a Keras neural network classifier.
 
 ### Hyperparameter tuning
 
-Tree and linear models were tuned with **RandomizedSearchCV** (3-fold cross-validation on the training set, 10–12 random combinations per model). The neural networks used **Optuna** (12–15 trials over hidden-layer size, dropout, and learning rate). Validation-set performance confirmed the search winners; all models below were evaluated once on the held-out test period.
+**How we searched for settings.** For regression, Ridge, Random Forest, LightGBM, and CatBoost each used **RandomizedSearchCV** with 3-fold cross-validation on the training set (10–12 random draws per model). Ridge tuned regularization strength (alpha from 0.001 to 100 on a log scale). Random Forest tuned tree count, depth, and minimum leaf size. LightGBM tuned number of trees, learning rate, leaf count, and row subsampling. CatBoost tuned tree depth, learning rate, iteration count, and L2 regularization. The Keras neural network used **Optuna** for 12 trials over two hidden-layer sizes, dropout, and learning rate. The stacking ensemble used a fixed Ridge meta-learner (alpha = 1.0) fit on validation predictions from the three base models. Classification models followed the same RandomizedSearchCV approach (8–10 iterations per model) but were scored by **macro-F1** instead of RMSE. All final models were evaluated once on the held-out test period.
 
-**How we searched for settings.** For regression, Ridge, Random Forest, LightGBM, and CatBoost each used **RandomizedSearchCV** with 3-fold cross-validation on the training set (10–12 random draws per model). Ridge tuned regularization strength (`alpha` from 0.001 to 100 on a log scale). Random Forest tuned tree count, depth, and minimum leaf size. LightGBM tuned number of trees, learning rate, leaf count, and row subsampling. CatBoost tuned tree depth, learning rate, iteration count, and L2 regularization. The Keras neural network used **Optuna** for 12 trials over two hidden-layer sizes, dropout, and learning rate. The stacking ensemble used a fixed Ridge meta-learner (`alpha = 1.0`) fit on validation predictions from the three base models. Classification models followed the same RandomizedSearchCV approach (8–10 iterations per model) but were scored by **macro-F1** instead of RMSE.
+**Selected hyperparameters (final models):**
 
-**Table B — Selected hyperparameters (final models)**
-
-| Model | Final settings |
-|---|---|
-| Ridge | `alpha` = 54.6 |
-| Random Forest | `n_estimators` = 300, `min_samples_leaf` = 5, `max_depth` = unlimited |
-| LightGBM | `n_estimators` = 600, `learning_rate` = 0.05, `num_leaves` = 63, `subsample` = 0.9 |
-| CatBoost | `depth` = 10, `learning_rate` = 0.05, `iterations` = 500, `l2_leaf_reg` = 5 |
-| Keras MLP (regression) | 128 → 16 units, `dropout` = 0.29, `learning_rate` = 0.0045 |
-| Stacking ensemble | Meta weights: LightGBM 0.21, CatBoost 0.78, MLP 0.05 |
-| CatBoost (classification) | `depth` = 8, `learning_rate` = 0.1, `iterations` = 500 |
+- Ridge: alpha = 54.6
+- Random Forest: 300 trees, minimum leaf size 5, unlimited depth
+- LightGBM: 600 trees, learning rate 0.05, 63 leaves, subsample 0.9
+- CatBoost (regression): depth 10, learning rate 0.05, 500 iterations, L2 regularization 5
+- Keras MLP (regression): 128 → 16 units, dropout 0.29, learning rate 0.0045
+- Stacking ensemble meta weights: LightGBM 0.21, CatBoost 0.78, MLP 0.05
+- CatBoost (classification): depth 8, learning rate 0.1, 500 iterations
 
 ---
 
@@ -210,7 +206,7 @@ Beyond overall accuracy, we asked which inputs the best tree model (CatBoost) re
 
 Tree-based models (LightGBM, CatBoost, Random Forest) outperformed the neural network on this dataset. This is a common finding for structured tabular data with strong categorical interactions (location × hour × weekday). The neural network still beat linear baselines by a wide margin but did not justify its added complexity over gradient boosting alone.
 
-The stacking ensemble achieved a modest improvement over the best individual model (RMSE 0.123 vs. 0.125 for CatBoost alone), suggesting some benefit from combining diverse model types, though the gain is small relative to the engineering effort.
+The stacking ensemble achieved a modest improvement over the best individual model (RMSE 0.123 vs. 0.125 for CatBoost alone), suggesting some benefit from combining diverse model types, though the gain is small relative to the engineering effort. Although the stacking ensemble achieved the lowest RMSE, **CatBoost is the recommended production model** because it performs nearly as well while being simpler to maintain and explain.
 
 ![Peak Hour Predictions](../figures/peak_hour_pred_vs_actual.png)
 
@@ -230,6 +226,8 @@ CatBoost correctly classifies usage level about **82%** of the time on held-out 
 
 ![Classification Confusion Matrix](../figures/classification_confusion_matrix.png)
 
+Most classification errors occur between neighboring categories, especially medium vs. high, which is less concerning than confusing high-usage periods with low-usage periods.
+
 ### Feature impact: academic calendar (ablation)
 
 As complementary evidence to the global importance chart, we trained LightGBM with and without academic calendar flags. Adding summer, breaks, and finals indicators improved test RMSE from **0.145 to 0.128** — confirming that campus schedule effects are real and worth modeling even when hour and location already explain most variation.
@@ -244,7 +242,7 @@ As complementary evidence to the global importance chart, we trained LightGBM wi
 2. **Peak crowding is concentrated** on weekday afternoons (4–6 PM), especially Monday through Wednesday.
 3. **Location matters significantly.** The Track Exercise Room and 2nd Floor run 60–80% higher utilization than the 1st Floor and Lower Exercise Room.
 4. **Summer and breaks are reliably quieter**, making them good times for students who prefer less crowded workouts.
-5. **Gradient boosting models are the practical choice** for deployment; neural networks and ensembles offer diminishing returns on this dataset.
+5. **CatBoost is the recommended deployment model.** The stacking ensemble marginally outperforms it on RMSE, but CatBoost offers nearly equivalent accuracy with less complexity; neural networks add further cost without meaningful gains on this dataset.
 
 ### Recommendations for Rec Center staff and students
 
@@ -261,8 +259,9 @@ As complementary evidence to the global importance chart, we trained LightGBM wi
 ### Limitations
 
 - Occuspace estimates are not exact headcounts; utilization above 100% suggests capacity list mismatches or sensor noise.
-- The model reflects historical patterns and may not immediately capture sudden changes (new equipment, policy changes, or major campus events).
-- Predictions are most reliable for **regular recurring patterns**; one-off events are not captured.
+- The model reflects historical patterns and may not immediately capture sudden changes (new equipment, policy changes, or facility renovations).
+- The model does not currently include special campus events, weather, intramural schedules, facility closures, or promotions, which may explain some one-off prediction errors.
+- Predictions are most reliable for **regular recurring patterns** rather than exceptional one-time events.
 
 ### Next steps
 
