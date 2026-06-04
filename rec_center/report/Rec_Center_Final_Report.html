@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>Rec_Center_Final_Report</title>
+  <title>Cal Poly Rec Center Usage Prediction — Final Report</title>
   <style>
     html {
       line-height: 1.5;
@@ -149,8 +149,12 @@
   <![endif]-->
 </head>
 <body>
+<header id="title-block-header">
+<h1 class="title">Cal Poly Rec Center Usage Prediction — Final Report</h1>
+</header>
 <h1 id="cal-poly-rec-center-usage-prediction-final-report">Cal Poly Rec Center Usage Prediction — Final Report</h1>
 <p><strong>Advanced Machine Learning Final Project</strong></p>
+<p><strong>GitHub repository:</strong> <a href="https://github.com/tyleroberts4/Advanced-Machine-Learning">github.com/tyleroberts4/Advanced-Machine-Learning</a> (see the <code>rec_center/</code> folder for notebooks, figures, and code)</p>
 <hr />
 <h2 id="problem-statement">1. Problem Statement</h2>
 <p>The Cal Poly Recreation Center is one of the most heavily used student facilities on campus, yet students often have no reliable way to know how crowded it will be before they arrive. Long lines, full weight rooms, and packed cardio areas create frustration and can discourage students from using a resource they already pay for.</p>
@@ -257,7 +261,9 @@
 <thead>
 <tr class="header">
 <th>Split</th>
-<th>Period</th>
+<th>Calendar span</th>
+<th style="text-align: right;">Approx. months</th>
+<th style="text-align: right;">Observations</th>
 <th>Purpose</th>
 </tr>
 </thead>
@@ -265,21 +271,32 @@
 <tr class="odd">
 <td>Training</td>
 <td>May 2023 – June 2024</td>
+<td style="text-align: right;">~14</td>
+<td style="text-align: right;">82,679</td>
 <td>Learn historical patterns</td>
 </tr>
 <tr class="even">
 <td>Validation</td>
 <td>July – December 2024</td>
-<td>Tune model settings</td>
+<td style="text-align: right;">6</td>
+<td style="text-align: right;">39,596</td>
+<td>Tune and confirm model settings</td>
 </tr>
 <tr class="odd">
 <td>Test</td>
 <td>January 2025 – April 2026</td>
+<td style="text-align: right;">~16</td>
+<td style="text-align: right;">101,008</td>
 <td>Final unbiased evaluation</td>
 </tr>
 </tbody>
 </table>
 <p>We deliberately avoided random train/test splits, which would mix future data into training and overstate accuracy.</p>
+<p><strong>Why is the test window longer than training?</strong> The test period includes all data after validation through the end of our export (April 2026). Holding out a large block of future months gives a stable evaluation across two full academic years. The six-month validation window sits between train and test so hyperparameters are chosen on recent-but-not-future data.</p>
+<p><strong>Would a longer training window help?</strong> We ran a sensitivity check: retraining CatBoost on train + validation (May 2023 – December 2024) with the same tuned settings improved test RMSE from <strong>0.125 to 0.113</strong> (~1.2 percentage points). That is a meaningful but modest gain. We kept the shorter training window for the primary results because it preserves an independent validation set for tuning; in production, we would retrain on all available history after each tuning cycle.</p>
+<figure>
+<img src="../figures/train_window_sensitivity.png" alt="Training Window Sensitivity" /><figcaption aria-hidden="true">Training Window Sensitivity</figcaption>
+</figure>
 <h3 id="features-used">Features used</h3>
 <p>Beyond raw time and location fields, we engineered:</p>
 <ul>
@@ -348,7 +365,52 @@
 </table>
 <p>These cutoffs align with the data median (0.35) and mean (0.44), giving intuitive “quiet / moderate / crowded” labels.</p>
 <p>Models compared: logistic regression, random forest, LightGBM, CatBoost, and a Keras neural network classifier.</p>
-<p>All models were tuned on the validation period before final test evaluation.</p>
+<h3 id="hyperparameter-tuning">Hyperparameter tuning</h3>
+<p>Tree and linear models were tuned with <strong>RandomizedSearchCV</strong> (3-fold cross-validation on the training set, 10–12 random combinations per model). The neural networks used <strong>Optuna</strong> (12–15 trials over hidden-layer size, dropout, and learning rate). Validation-set performance confirmed the search winners; all models below were evaluated once on the held-out test period.</p>
+<p><strong>How we searched for settings.</strong> For regression, Ridge, Random Forest, LightGBM, and CatBoost each used <strong>RandomizedSearchCV</strong> with 3-fold cross-validation on the training set (10–12 random draws per model). Ridge tuned regularization strength (<code>alpha</code> from 0.001 to 100 on a log scale). Random Forest tuned tree count, depth, and minimum leaf size. LightGBM tuned number of trees, learning rate, leaf count, and row subsampling. CatBoost tuned tree depth, learning rate, iteration count, and L2 regularization. The Keras neural network used <strong>Optuna</strong> for 12 trials over two hidden-layer sizes, dropout, and learning rate. The stacking ensemble used a fixed Ridge meta-learner (<code>alpha = 1.0</code>) fit on validation predictions from the three base models. Classification models followed the same RandomizedSearchCV approach (8–10 iterations per model) but were scored by <strong>macro-F1</strong> instead of RMSE.</p>
+<p><strong>Table B — Selected hyperparameters (final models)</strong></p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Model</th>
+<th>Final settings</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Ridge</td>
+<td><code>alpha</code> = 54.6</td>
+</tr>
+<tr class="even">
+<td>Random Forest</td>
+<td><code>n_estimators</code> = 300, <code>min_samples_leaf</code> = 5, <code>max_depth</code> = unlimited</td>
+</tr>
+<tr class="odd">
+<td>LightGBM</td>
+<td><code>n_estimators</code> = 600, <code>learning_rate</code> = 0.05, <code>num_leaves</code> = 63, <code>subsample</code> = 0.9</td>
+</tr>
+<tr class="even">
+<td>CatBoost</td>
+<td><code>depth</code> = 10, <code>learning_rate</code> = 0.05, <code>iterations</code> = 500, <code>l2_leaf_reg</code> = 5</td>
+</tr>
+<tr class="odd">
+<td>Keras MLP (regression)</td>
+<td>128 → 16 units, <code>dropout</code> = 0.29, <code>learning_rate</code> = 0.0045</td>
+</tr>
+<tr class="even">
+<td>Stacking ensemble</td>
+<td>Meta weights: LightGBM 0.21, CatBoost 0.78, MLP 0.05</td>
+</tr>
+<tr class="odd">
+<td>CatBoost (classification)</td>
+<td><code>depth</code> = 8, <code>learning_rate</code> = 0.1, <code>iterations</code> = 500</td>
+</tr>
+</tbody>
+</table>
 <hr />
 <h2 id="results-and-model-comparison">5. Results and Model Comparison</h2>
 <h3 id="regression-results-test-set">Regression results (test set)</h3>
@@ -412,6 +474,19 @@
 <li><strong>MAE (mean absolute error)</strong> — easier to interpret: on average, predictions are off by about <strong>9 percentage points</strong> for the best models.</li>
 <li><strong>R²</strong> — share of variance explained. Our best model explains about <strong>87%</strong> of utilization variation on unseen future data.</li>
 </ul>
+<p>On the validation set (July–December 2024), CatBoost reached RMSE <strong>0.130</strong> and LightGBM <strong>0.132</strong>, closely matching test performance — a sign that tuning generalized rather than overfitting to a single split.</p>
+<h3 id="what-drives-crowding">What drives crowding?</h3>
+<p>Beyond overall accuracy, we asked which inputs the best tree model (CatBoost) relies on most. The chart below aggregates one-hot location columns into a single <strong>Location</strong> bar.</p>
+<figure>
+<img src="../figures/feature_importance_regression.png" alt="Feature Importance" /><figcaption aria-hidden="true">Feature Importance</figcaption>
+</figure>
+<p><strong>Takeaways:</strong></p>
+<ul>
+<li><strong>Time and calendar context dominate.</strong> Day of week, week of year, and hour-related features (raw hour plus cyclical encodings) are among the strongest predictors — consistent with EDA showing weekday 4–6 PM peaks.</li>
+<li><strong>Academic calendar flags matter.</strong> Summer, winter break, and related flags rank highly; a separate ablation (below) confirms that adding calendar features materially improves accuracy.</li>
+<li><strong>Location still matters.</strong> Which area of the Rec Center is being measured is a meaningful driver, even after accounting for time — aligning with the Track Room and 2nd Floor running much busier than the 1st Floor.</li>
+<li><strong>Capacity plays a supporting role.</strong> Listed room capacity adds context but is less important than when and where the reading occurs.</li>
+</ul>
 <h3 id="neural-network-vs.-non-neural-network">Neural network vs. non-neural network</h3>
 <p>Tree-based models (LightGBM, CatBoost, Random Forest) outperformed the neural network on this dataset. This is a common finding for structured tabular data with strong categorical interactions (location × hour × weekday). The neural network still beat linear baselines by a wide margin but did not justify its added complexity over gradient boosting alone.</p>
 <p>The stacking ensemble achieved a modest improvement over the best individual model (RMSE 0.123 vs. 0.125 for CatBoost alone), suggesting some benefit from combining diverse model types, though the gain is small relative to the engineering effort.</p>
@@ -460,8 +535,8 @@
 <figure>
 <img src="../figures/classification_confusion_matrix.png" alt="Classification Confusion Matrix" /><figcaption aria-hidden="true">Classification Confusion Matrix</figcaption>
 </figure>
-<h3 id="feature-impact-academic-calendar">Feature impact: academic calendar</h3>
-<p>Adding academic calendar flags (summer, breaks, finals) improved LightGBM regression RMSE from <strong>0.145 to 0.128</strong> on the test set — a meaningful gain that confirms campus schedule effects are real and worth modeling.</p>
+<h3 id="feature-impact-academic-calendar-ablation">Feature impact: academic calendar (ablation)</h3>
+<p>As complementary evidence to the global importance chart, we trained LightGBM with and without academic calendar flags. Adding summer, breaks, and finals indicators improved test RMSE from <strong>0.145 to 0.128</strong> — confirming that campus schedule effects are real and worth modeling even when hour and location already explain most variation.</p>
 <hr />
 <h2 id="conclusions-and-recommendations">6. Conclusions and Recommendations</h2>
 <h3 id="key-findings">Key findings</h3>
@@ -488,6 +563,6 @@
 <li>Re-train annually to incorporate new academic calendar years and facility changes.</li>
 </ul>
 <hr />
-<p><em>This report accompanies the full reproducible analysis in the <a href="../README.md">Rec Center GitHub repository</a>.</em></p>
+<p><em>This report accompanies the full reproducible analysis in the <a href="https://github.com/tyleroberts4/Advanced-Machine-Learning/tree/main/rec_center">Rec Center GitHub repository</a> (<a href="../README.md">README</a>).</em></p>
 </body>
 </html>

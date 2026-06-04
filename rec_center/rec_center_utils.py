@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import date, time
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Union
 
 import numpy as np
 import pandas as pd
@@ -35,6 +36,28 @@ FEATURE_COLUMNS = [
 ]
 
 CATEGORICAL_COLUMNS = ["location"]
+
+# Whole-facility Occuspace series (for students who use multiple areas).
+GENERAL_LOCATION = "Rec Center"
+GENERAL_LOCATION_LABEL = "General Rec Center (any area)"
+
+DEFAULT_LOCATIONS = [
+    GENERAL_LOCATION,
+    "1st Floor",
+    "2nd Floor",
+    "Lower Exercise Room",
+    "Upper Exercise Room",
+    "Track Exercise Room",
+]
+
+LOCATION_DISPLAY_NAMES = {
+    GENERAL_LOCATION: GENERAL_LOCATION_LABEL,
+}
+
+REC_CENTER_OPEN = time(6, 0)
+REC_CENTER_CLOSE = time(23, 30)
+SLOT_MINUTES = 30
+MAX_FORECAST_DAYS = 31
 
 
 def project_root() -> Path:
@@ -205,6 +228,107 @@ def save_clean_data(df: pd.DataFrame, path: Path | None = None) -> Path:
 def load_clean_data(path: Path | None = None) -> pd.DataFrame:
     path = path or data_path()
     return pd.read_parquet(path)
+
+
+def models_path(name: str = "catboost_forecast.joblib") -> Path:
+    path = project_root() / "models" / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def location_display_name(location: str) -> str:
+    """User-facing label for a location (general option for multi-area gym-goers)."""
+    return LOCATION_DISPLAY_NAMES.get(location, location)
+
+
+def order_locations_for_ui(locations: list[str]) -> list[str]:
+    """Put general whole-facility option first, then specific areas alphabetically."""
+    specific = sorted(loc for loc in locations if loc != GENERAL_LOCATION)
+    if GENERAL_LOCATION in locations:
+        return [GENERAL_LOCATION] + specific
+    return specific
+
+
+def get_locations(df: pd.DataFrame | None = None) -> list[str]:
+    """Return unique locations from data or defaults, general option first."""
+    if df is not None and "location" in df.columns:
+        raw = df["location"].dropna().unique().tolist()
+        return order_locations_for_ui(raw)
+    path = data_path()
+    if path.exists():
+        raw = pd.read_parquet(path, columns=["location"])["location"].unique().tolist()
+        return order_locations_for_ui(raw)
+    return order_locations_for_ui(list(DEFAULT_LOCATIONS))
+
+
+def location_capacity_map(df: pd.DataFrame) -> dict[str, float]:
+    """Median listed capacity per location for forecast features."""
+    return df.groupby("location")["capacity"].median().astype(float).to_dict()
+
+
+def utilization_to_level(util: float) -> str:
+    if util < CLASS_LOW:
+        return "low"
+    if util <= CLASS_HIGH:
+        return "medium"
+    return "high"
+
+
+def iter_half_hour_slots() -> list[tuple[int, int]]:
+    """(hour, minute) pairs from 6:00 through 23:30 inclusive."""
+    slots: list[tuple[int, int]] = []
+    for hour in range(6, 24):
+        for minute in (0, 30):
+            slots.append((hour, minute))
+    return slots
+
+
+def _normalize_dates(dates: Union[pd.DatetimeIndex, list, date, pd.Timestamp]) -> pd.DatetimeIndex:
+    if isinstance(dates, pd.DatetimeIndex):
+        return dates.normalize()
+    return pd.DatetimeIndex(pd.to_datetime(dates)).normalize()
+
+
+def build_slot_dataframe(
+    dates: Union[pd.DatetimeIndex, list, date, pd.Timestamp],
+    locations: Union[str, list[str]],
+    capacity_map: dict[str, float],
+) -> pd.DataFrame:
+    """Build feature-ready rows for each date, 30-min slot, and location."""
+    date_index = _normalize_dates(dates)
+    if isinstance(locations, str):
+        locs = [locations]
+    else:
+        locs = list(locations)
+
+    rows: list[dict] = []
+    for day in date_index:
+        for hour, minute in iter_half_hour_slots():
+            ts = pd.Timestamp(
+                year=day.year,
+                month=day.month,
+                day=day.day,
+                hour=hour,
+                minute=minute,
+            )
+            for loc in locs:
+                rows.append(
+                    {
+                        "timestamp": ts,
+                        "location": loc,
+                        "hour": hour,
+                        "day_of_week": int(ts.dayofweek),
+                        "month": int(ts.month),
+                        "week_of_year": int(ts.isocalendar().week),
+                        "capacity": float(capacity_map.get(loc, 100.0)),
+                    }
+                )
+
+    df = pd.DataFrame(rows)
+    df["is_weekend"] = df["day_of_week"].isin([5, 6]).astype(int)
+    df = add_cyclical_features(df)
+    df = add_academic_calendar_features(df)
+    return df
 
 
 def regression_metrics(y_true, y_pred) -> dict[str, float]:

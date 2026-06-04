@@ -1,0 +1,41 @@
+{
+  "locations": [
+    "1st Floor",
+    "2nd Floor",
+    "Lower Exercise Room",
+    "Rec Center",
+    "Track Exercise Room",
+    "Upper Exercise Room"
+  ],
+  "capacity": {
+    "1st Floor": 85.0,
+    "2nd Floor": 135.0,
+    "Lower Exercise Room": 85.0,
+    "Rec Center": 220.0,
+    "Track Exercise Room": 45.0,
+    "Upper Exercise Room": 90.0
+  },
+  "feature_columns": [
+    "hour",
+    "day_of_week",
+    "month",
+    "week_of_year",
+    "is_weekend",
+    "hour_sin",
+    "hour_cos",
+    "month_sin",
+    "month_cos",
+    "is_summer",
+    "is_winter_break",
+    "is_spring_break",
+    "is_finals_week",
+    "capacity",
+    "location"
+  ],
+  "catboost_params": {
+    "learning_rate": 0.05,
+    "l2_leaf_reg": 5,
+    "iterations": 500,
+    "depth": 10
+  }
+}

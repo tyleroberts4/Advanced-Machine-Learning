@@ -155,17 +155,7 @@ Models compared: logistic regression, random forest, LightGBM, CatBoost, and a K
 
 Tree and linear models were tuned with **RandomizedSearchCV** (3-fold cross-validation on the training set, 10–12 random combinations per model). The neural networks used **Optuna** (12–15 trials over hidden-layer size, dropout, and learning rate). Validation-set performance confirmed the search winners; all models below were evaluated once on the held-out test period.
 
-**Table A — Search method and parameter space**
-
-| Model | Search method | CV / trials | Parameters searched |
-|---|---|---|---|
-| Ridge (regression) | RandomizedSearchCV | 3-fold, 10 iter | `alpha`: 0.001–100 (log scale) |
-| Random Forest | RandomizedSearchCV | 3-fold, 12 iter | `n_estimators`, `max_depth`, `min_samples_leaf` |
-| LightGBM | RandomizedSearchCV | 3-fold, 12 iter | `n_estimators`, `learning_rate`, `num_leaves`, `subsample` |
-| CatBoost | RandomizedSearchCV | 3-fold, 12 iter | `depth`, `learning_rate`, `iterations`, `l2_leaf_reg` |
-| Keras MLP | Optuna | 12 trials | `units_1`, `units_2`, `dropout`, `learning_rate` |
-| Stacking meta-learner | Fixed | — | Ridge `alpha = 1.0` on validation predictions |
-| Classification models | RandomizedSearchCV | 3-fold, 8–10 iter | Same families as above; scored by **macro-F1** |
+**How we searched for settings.** For regression, Ridge, Random Forest, LightGBM, and CatBoost each used **RandomizedSearchCV** with 3-fold cross-validation on the training set (10–12 random draws per model). Ridge tuned regularization strength (`alpha` from 0.001 to 100 on a log scale). Random Forest tuned tree count, depth, and minimum leaf size. LightGBM tuned number of trees, learning rate, leaf count, and row subsampling. CatBoost tuned tree depth, learning rate, iteration count, and L2 regularization. The Keras neural network used **Optuna** for 12 trials over two hidden-layer sizes, dropout, and learning rate. The stacking ensemble used a fixed Ridge meta-learner (`alpha = 1.0`) fit on validation predictions from the three base models. Classification models followed the same RandomizedSearchCV approach (8–10 iterations per model) but were scored by **macro-F1** instead of RMSE.
 
 **Table B — Selected hyperparameters (final models)**
 
