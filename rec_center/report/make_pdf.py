@@ -32,6 +32,8 @@ UNICODE_MAP = {
     "…": "...",
     "é": "e",
     "≈": "~",
+    "→": "->",
+    "−": "-",
 }
 
 def sanitize(text: str) -> str:

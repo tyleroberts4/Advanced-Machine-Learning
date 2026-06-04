@@ -1,6 +1,8 @@
-22# Cal Poly Rec Center Usage Prediction — Final Report
+# Cal Poly Rec Center Usage Prediction — Final Report
 
 **Advanced Machine Learning Final Project**
+
+**GitHub repository:** [github.com/tyleroberts4/Advanced-Machine-Learning](https://github.com/tyleroberts4/Advanced-Machine-Learning) (see the `rec_center/` folder for notebooks, figures, and code)
 
 ---
 
@@ -101,13 +103,19 @@ A heatmap of weekday versus hour confirms that **weekday late afternoons** are t
 
 We treated this as a **forecasting problem**: the model learns from past usage and predicts future periods it has never seen. Data was split by time:
 
-| Split | Period | Purpose |
-|---|---|---|
-| Training | May 2023 – June 2024 | Learn historical patterns |
-| Validation | July – December 2024 | Tune model settings |
-| Test | January 2025 – April 2026 | Final unbiased evaluation |
+| Split | Calendar span | Approx. months | Observations | Purpose |
+|---|---|---:|---:|---|
+| Training | May 2023 – June 2024 | ~14 | 82,679 | Learn historical patterns |
+| Validation | July – December 2024 | 6 | 39,596 | Tune and confirm model settings |
+| Test | January 2025 – April 2026 | ~16 | 101,008 | Final unbiased evaluation |
 
 We deliberately avoided random train/test splits, which would mix future data into training and overstate accuracy.
+
+**Why is the test window longer than training?** The test period includes all data after validation through the end of our export (April 2026). Holding out a large block of future months gives a stable evaluation across two full academic years. The six-month validation window sits between train and test so hyperparameters are chosen on recent-but-not-future data.
+
+**Would a longer training window help?** We ran a sensitivity check: retraining CatBoost on train + validation (May 2023 – December 2024) with the same tuned settings improved test RMSE from **0.125 to 0.113** (~1.2 percentage points). That is a meaningful but modest gain. We kept the shorter training window for the primary results because it preserves an independent validation set for tuning; in production, we would retrain on all available history after each tuning cycle.
+
+![Training Window Sensitivity](../figures/train_window_sensitivity.png)
 
 ### Features used
 
@@ -143,7 +151,33 @@ These cutoffs align with the data median (0.35) and mean (0.44), giving intuitiv
 
 Models compared: logistic regression, random forest, LightGBM, CatBoost, and a Keras neural network classifier.
 
-All models were tuned on the validation period before final test evaluation.
+### Hyperparameter tuning
+
+Tree and linear models were tuned with **RandomizedSearchCV** (3-fold cross-validation on the training set, 10–12 random combinations per model). The neural networks used **Optuna** (12–15 trials over hidden-layer size, dropout, and learning rate). Validation-set performance confirmed the search winners; all models below were evaluated once on the held-out test period.
+
+**Table A — Search method and parameter space**
+
+| Model | Search method | CV / trials | Parameters searched |
+|---|---|---|---|
+| Ridge (regression) | RandomizedSearchCV | 3-fold, 10 iter | `alpha`: 0.001–100 (log scale) |
+| Random Forest | RandomizedSearchCV | 3-fold, 12 iter | `n_estimators`, `max_depth`, `min_samples_leaf` |
+| LightGBM | RandomizedSearchCV | 3-fold, 12 iter | `n_estimators`, `learning_rate`, `num_leaves`, `subsample` |
+| CatBoost | RandomizedSearchCV | 3-fold, 12 iter | `depth`, `learning_rate`, `iterations`, `l2_leaf_reg` |
+| Keras MLP | Optuna | 12 trials | `units_1`, `units_2`, `dropout`, `learning_rate` |
+| Stacking meta-learner | Fixed | — | Ridge `alpha = 1.0` on validation predictions |
+| Classification models | RandomizedSearchCV | 3-fold, 8–10 iter | Same families as above; scored by **macro-F1** |
+
+**Table B — Selected hyperparameters (final models)**
+
+| Model | Final settings |
+|---|---|
+| Ridge | `alpha` = 54.6 |
+| Random Forest | `n_estimators` = 300, `min_samples_leaf` = 5, `max_depth` = unlimited |
+| LightGBM | `n_estimators` = 600, `learning_rate` = 0.05, `num_leaves` = 63, `subsample` = 0.9 |
+| CatBoost | `depth` = 10, `learning_rate` = 0.05, `iterations` = 500, `l2_leaf_reg` = 5 |
+| Keras MLP (regression) | 128 → 16 units, `dropout` = 0.29, `learning_rate` = 0.0045 |
+| Stacking ensemble | Meta weights: LightGBM 0.21, CatBoost 0.78, MLP 0.05 |
+| CatBoost (classification) | `depth` = 8, `learning_rate` = 0.1, `iterations` = 500 |
 
 ---
 
@@ -166,6 +200,21 @@ All models were tuned on the validation period before final test evaluation.
 - **RMSE (root mean squared error)** — our primary metric. It penalizes large misses heavily, which matters most during peak hours when students care most about accuracy. An RMSE of 0.123 means typical prediction errors are roughly 12 percentage points of utilization.
 - **MAE (mean absolute error)** — easier to interpret: on average, predictions are off by about **9 percentage points** for the best models.
 - **R²** — share of variance explained. Our best model explains about **87%** of utilization variation on unseen future data.
+
+On the validation set (July–December 2024), CatBoost reached RMSE **0.130** and LightGBM **0.132**, closely matching test performance — a sign that tuning generalized rather than overfitting to a single split.
+
+### What drives crowding?
+
+Beyond overall accuracy, we asked which inputs the best tree model (CatBoost) relies on most. The chart below aggregates one-hot location columns into a single **Location** bar.
+
+![Feature Importance](../figures/feature_importance_regression.png)
+
+**Takeaways:**
+
+- **Time and calendar context dominate.** Day of week, week of year, and hour-related features (raw hour plus cyclical encodings) are among the strongest predictors — consistent with EDA showing weekday 4–6 PM peaks.
+- **Academic calendar flags matter.** Summer, winter break, and related flags rank highly; a separate ablation (below) confirms that adding calendar features materially improves accuracy.
+- **Location still matters.** Which area of the Rec Center is being measured is a meaningful driver, even after accounting for time — aligning with the Track Room and 2nd Floor running much busier than the 1st Floor.
+- **Capacity plays a supporting role.** Listed room capacity adds context but is less important than when and where the reading occurs.
 
 ### Neural network vs. non-neural network
 
@@ -191,9 +240,9 @@ CatBoost correctly classifies usage level about **82%** of the time on held-out 
 
 ![Classification Confusion Matrix](../figures/classification_confusion_matrix.png)
 
-### Feature impact: academic calendar
+### Feature impact: academic calendar (ablation)
 
-Adding academic calendar flags (summer, breaks, finals) improved LightGBM regression RMSE from **0.145 to 0.128** on the test set — a meaningful gain that confirms campus schedule effects are real and worth modeling.
+As complementary evidence to the global importance chart, we trained LightGBM with and without academic calendar flags. Adding summer, breaks, and finals indicators improved test RMSE from **0.145 to 0.128** — confirming that campus schedule effects are real and worth modeling even when hour and location already explain most variation.
 
 ---
 
@@ -233,4 +282,4 @@ Adding academic calendar flags (summer, breaks, finals) improved LightGBM regres
 
 ---
 
-*This report accompanies the full reproducible analysis in the [Rec Center GitHub repository](../README.md).*
+*This report accompanies the full reproducible analysis in the [Rec Center GitHub repository](https://github.com/tyleroberts4/Advanced-Machine-Learning/tree/main/rec_center) ([README](../README.md)).*

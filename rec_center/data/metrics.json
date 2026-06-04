@@ -82,31 +82,31 @@
     "keras_mlp": {
       "params": {
         "units_1": 128,
-        "units_2": 32,
-        "dropout": 0.172923220512762,
-        "learning_rate": 0.0021446925020494534
+        "units_2": 16,
+        "dropout": 0.2930967744947739,
+        "learning_rate": 0.004543111187461366
       },
       "validation": {
-        "rmse": 0.15915464773461135,
-        "mae": 0.10513668725731633,
-        "r2": 0.738590159870588
+        "rmse": 0.1478725113654892,
+        "mae": 0.09982522510702634,
+        "r2": 0.7743381326915357
       },
       "test": {
-        "rmse": 0.14335172153938097,
-        "mae": 0.09958479090675633,
-        "r2": 0.8260885749882145
+        "rmse": 0.14234724976266766,
+        "mae": 0.09955957208124398,
+        "r2": 0.8285172460786101
       }
     },
     "stacking_ensemble": {
       "meta_weights": [
-        0.17048466233694554,
-        0.9750198927392209,
-        -0.12429754216772036
+        0.2052950647022942,
+        0.7779045209804644,
+        0.05013271991847888
       ],
       "test": {
-        "rmse": 0.12294562304130179,
-        "mae": 0.0887883884422532,
-        "r2": 0.8720770599457432
+        "rmse": 0.12301169393895474,
+        "mae": 0.0886076796947451,
+        "r2": 0.8719395315927061
       },
       "base_models": [
         "lightgbm",
@@ -167,14 +167,14 @@
     },
     "keras_mlp": {
       "params": {
-        "units_1": 128,
-        "units_2": 64,
-        "dropout": 0.16938225630166848,
-        "learning_rate": 0.00463201734541987
+        "units_1": 96,
+        "units_2": 48,
+        "dropout": 0.36660537217976386,
+        "learning_rate": 0.0038453541744267006
       },
       "test": {
-        "accuracy": 0.804391731348012,
-        "macro_f1": 0.77872670224213
+        "accuracy": 0.8074112941549184,
+        "macro_f1": 0.7813637941119086
       }
     }
   },
@@ -194,26 +194,26 @@
     "optuna_regression": {
       "best_params": {
         "units_1": 128,
-        "units_2": 32,
-        "dropout": 0.172923220512762,
-        "learning_rate": 0.0021446925020494534
+        "units_2": 16,
+        "dropout": 0.2930967744947739,
+        "learning_rate": 0.004543111187461366
       },
       "validation": {
-        "rmse": 0.15915464773461135,
-        "mae": 0.10513668725731633,
-        "r2": 0.738590159870588
+        "rmse": 0.1478725113654892,
+        "mae": 0.09982522510702634,
+        "r2": 0.7743381326915357
       }
     },
     "stacking_ensemble": {
       "meta_weights": [
-        0.17048466233694554,
-        0.9750198927392209,
-        -0.12429754216772036
+        0.2052950647022942,
+        0.7779045209804644,
+        0.05013271991847888
       ],
       "test": {
-        "rmse": 0.12294562304130179,
-        "mae": 0.0887883884422532,
-        "r2": 0.8720770599457432
+        "rmse": 0.12301169393895474,
+        "mae": 0.0886076796947451,
+        "r2": 0.8719395315927061
       },
       "base_models": [
         "lightgbm",
@@ -222,9 +222,62 @@
       ]
     }
   },
+  "feature_importance": {
+    "top_features": [
+      {
+        "feature": "Summer",
+        "importance": 25.55473801698658
+      },
+      {
+        "feature": "Day of week",
+        "importance": 13.883967605565028
+      },
+      {
+        "feature": "Week of year",
+        "importance": 12.805724334648676
+      },
+      {
+        "feature": "Hour (cyclical)",
+        "importance": 11.549907342029012
+      },
+      {
+        "feature": "Hour of day",
+        "importance": 8.49159183769398
+      },
+      {
+        "feature": "Winter break",
+        "importance": 8.151833543015265
+      },
+      {
+        "feature": "Capacity",
+        "importance": 5.487250278712152
+      },
+      {
+        "feature": "Location",
+        "importance": 4.842213705943885
+      },
+      {
+        "feature": "Month (cyclical)",
+        "importance": 3.972474211169235
+      },
+      {
+        "feature": "Spring break",
+        "importance": 3.5085978910164894
+      }
+    ]
+  },
+  "split_sensitivity": {
+    "current_train_end": "2024-06-30",
+    "validation_end": "2024-12-31",
+    "baseline_train_rmse": 0.12512987167358194,
+    "extended_train_rmse": 0.11290549715915904,
+    "delta_rmse": -0.012224374514422903,
+    "extended_train_mae": 0.08057398507498804,
+    "extended_train_r2": 0.8921171371024215
+  },
   "summary": {
     "best_regression_model": "stacking_ensemble",
-    "best_regression_rmse": 0.12294562304130179,
+    "best_regression_rmse": 0.12301169393895474,
     "best_classification_model": "catboost",
     "best_classification_macro_f1": 0.7927918001432585
   }

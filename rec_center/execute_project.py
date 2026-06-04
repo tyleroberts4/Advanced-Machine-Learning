@@ -206,6 +206,113 @@ def transform_frame(preprocessor, df, include_calendar=True):
     return preprocessor.transform(x)
 
 
+FEATURE_LABELS = {
+    "hour": "Hour of day",
+    "day_of_week": "Day of week",
+    "month": "Month",
+    "week_of_year": "Week of year",
+    "is_weekend": "Weekend",
+    "hour_sin": "Hour (cyclical)",
+    "hour_cos": "Hour (cyclical)",
+    "month_sin": "Month (cyclical)",
+    "month_cos": "Month (cyclical)",
+    "is_summer": "Summer",
+    "is_winter_break": "Winter break",
+    "is_spring_break": "Spring break",
+    "is_finals_week": "Finals week",
+    "capacity": "Capacity",
+}
+
+
+def aggregate_feature_importances(model_pipeline) -> pd.DataFrame:
+    """Aggregate CatBoost importances; sum location one-hot columns into Location."""
+    prep = model_pipeline.named_steps["prep"]
+    model = model_pipeline.named_steps["model"]
+    raw_names = prep.get_feature_names_out()
+    importances = model.feature_importances_
+
+    grouped: dict[str, float] = {}
+    for name, importance in zip(raw_names, importances):
+        if name.startswith("cat__location"):
+            grouped["Location"] = grouped.get("Location", 0.0) + float(importance)
+        else:
+            key = name.replace("num__", "")
+            label = FEATURE_LABELS.get(key, key)
+            grouped[label] = grouped.get(label, 0.0) + float(importance)
+
+    out = pd.DataFrame({"feature": list(grouped.keys()), "importance": list(grouped.values())})
+    return out.sort_values("importance", ascending=False).reset_index(drop=True)
+
+
+def plot_feature_importance(model_pipeline) -> dict:
+    """Save feature importance bar chart and return top features for metrics.json."""
+    importance_df = aggregate_feature_importances(model_pipeline)
+    top = importance_df.head(12)
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    sns.barplot(data=top, y="feature", x="importance", ax=ax, color="#4C72B0")
+    ax.set_title("What Drives Rec Center Crowding (CatBoost Feature Importance)")
+    ax.set_xlabel("Relative Importance")
+    ax.set_ylabel("")
+    fig.tight_layout()
+    fig.savefig(figures_path("feature_importance_regression.png"), dpi=150)
+    plt.close(fig)
+
+    return {
+        "top_features": [
+            {"feature": row["feature"], "importance": float(row["importance"])}
+            for _, row in importance_df.head(10).iterrows()
+        ]
+    }
+
+
+def run_split_sensitivity(train_df, val_df, test_df, cat_params: dict, current_test_rmse: float) -> dict:
+    """Retrain CatBoost on train+validation with fixed params; compare test RMSE."""
+    from rec_center_utils import TRAIN_END, VAL_END
+
+    extended_df = pd.concat([train_df, val_df], ignore_index=True)
+    ext_preprocessor = make_preprocessor(get_feature_frame(extended_df).columns.tolist())
+    ext_preprocessor.fit(get_feature_frame(extended_df))
+
+    cat_kwargs = {k.replace("model__", ""): v for k, v in cat_params.items()}
+    ext_pipe = Pipeline(
+        [
+            ("prep", ext_preprocessor),
+            ("model", CatBoostRegressor(random_state=RANDOM_STATE, verbose=0, **cat_kwargs)),
+        ]
+    )
+    ext_pipe.fit(get_feature_frame(extended_df), extended_df["average_utilization"].values)
+    y_test = test_df["average_utilization"].values
+    ext_test = eval_regression(y_test, ext_pipe.predict(get_feature_frame(test_df)))
+
+    fig, ax = plt.subplots(figsize=(5, 4))
+    comparison = pd.DataFrame(
+        {
+            "scenario": ["Current train\n(May 2023–Jun 2024)", "Extended train\n(May 2023–Dec 2024)"],
+            "test_rmse": [current_test_rmse, ext_test["rmse"]],
+        }
+    )
+    sns.barplot(data=comparison, x="scenario", y="test_rmse", ax=ax, color="#55A868")
+    ax.set_title("Training Window Sensitivity (CatBoost Test RMSE)")
+    ax.set_ylabel("Test RMSE")
+    ax.set_xlabel("")
+    for bar, rmse in zip(ax.patches, comparison["test_rmse"]):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.002, f"{rmse:.4f}", ha="center", va="bottom", fontsize=9)
+    fig.tight_layout()
+    fig.savefig(figures_path("train_window_sensitivity.png"), dpi=150)
+    plt.close(fig)
+
+    return {
+        "current_train_end": str(TRAIN_END.date()),
+        "validation_end": str(VAL_END.date()),
+        "baseline_train_rmse": current_test_rmse,
+        "extended_train_rmse": ext_test["rmse"],
+        "delta_rmse": float(ext_test["rmse"] - current_test_rmse),
+        "extended_train_mae": ext_test["mae"],
+        "extended_train_r2": ext_test["r2"],
+    }
+
+
 def run_eda(df: pd.DataFrame):
     fig, ax = plt.subplots(figsize=(8, 4))
     sns.histplot(df["average_utilization"], bins=50, kde=True, ax=ax)
@@ -393,7 +500,16 @@ def main():
         get_feature_frame(val_df),
         y_val,
     )
-    metrics["regression"]["catboost"] = {"params": cat_params, "validation": cat_val, "test": eval_regression(y_test, cat_best.predict(get_feature_frame(test_df)))}
+    cat_test_metrics = eval_regression(y_test, cat_best.predict(get_feature_frame(test_df)))
+    metrics["regression"]["catboost"] = {"params": cat_params, "validation": cat_val, "test": cat_test_metrics}
+
+    print("Feature importance (CatBoost)...")
+    metrics["feature_importance"] = plot_feature_importance(cat_best)
+
+    print("Training window sensitivity...")
+    metrics["split_sensitivity"] = run_split_sensitivity(
+        train_df, val_df, test_df, cat_params, cat_test_metrics["rmse"]
+    )
 
     print("Calendar ablation (LightGBM without calendar flags)...")
     no_cal_preprocessor = make_preprocessor(get_feature_frame(train_df, include_calendar=False).columns.tolist())

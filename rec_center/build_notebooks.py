@@ -374,6 +374,97 @@ pd.DataFrame(results).sort_values("rmse")
 """
         ),
         md(
+            "## Feature importance — what drives crowding?\n\n"
+            "Use the tuned CatBoost model's built-in importances. Location one-hot columns are aggregated "
+            "into a single Location bar for readability."
+        ),
+        code(
+            """
+FEATURE_LABELS = {
+    "hour": "Hour of day",
+    "day_of_week": "Day of week",
+    "month": "Month",
+    "week_of_year": "Week of year",
+    "is_weekend": "Weekend",
+    "hour_sin": "Hour (cyclical)",
+    "hour_cos": "Hour (cyclical)",
+    "month_sin": "Month (cyclical)",
+    "month_cos": "Month (cyclical)",
+    "is_summer": "Summer",
+    "is_winter_break": "Winter break",
+    "is_spring_break": "Spring break",
+    "is_finals_week": "Finals week",
+    "capacity": "Capacity",
+}
+
+def aggregate_importances(pipe):
+    prep = pipe.named_steps["prep"]
+    model = pipe.named_steps["model"]
+    grouped = {}
+    for name, imp in zip(prep.get_feature_names_out(), model.feature_importances_):
+        if name.startswith("cat__location"):
+            grouped["Location"] = grouped.get("Location", 0.0) + float(imp)
+        else:
+            key = name.replace("num__", "")
+            label = FEATURE_LABELS.get(key, key)
+            grouped[label] = grouped.get(label, 0.0) + float(imp)
+    return pd.DataFrame({"feature": grouped.keys(), "importance": grouped.values()}).sort_values("importance", ascending=False)
+
+importance_df = aggregate_importances(cat_best)
+top = importance_df.head(12)
+fig, ax = plt.subplots(figsize=(8, 5))
+sns.barplot(data=top, y="feature", x="importance", ax=ax, color="#4C72B0")
+ax.set_title("What Drives Rec Center Crowding (CatBoost Feature Importance)")
+ax.set_xlabel("Relative Importance")
+fig.savefig(figures_path("feature_importance_regression.png"), dpi=150, bbox_inches="tight")
+plt.show()
+importance_df.head(10)
+"""
+        ),
+        md(
+            "## Training window sensitivity\n\n"
+            "The test period is longer than training (~16 vs ~14 months). We retrain CatBoost on train+validation "
+            "using the same tuned hyperparameters to see whether more history improves test performance."
+        ),
+        code(
+            """
+extended_df = pd.concat([train_df, val_df], ignore_index=True)
+ext_cols = get_feature_frame(extended_df).columns.tolist()
+ext_numeric = [c for c in ext_cols if c != "location"]
+ext_prep = ColumnTransformer([
+    ("cat", OneHotEncoder(handle_unknown="ignore"), ["location"]),
+    ("num", "passthrough", ext_numeric),
+])
+ext_pipe = Pipeline([
+    ("prep", ext_prep),
+    ("model", CatBoostRegressor(
+        random_state=RANDOM_STATE,
+        verbose=0,
+        **{k.replace("model__", ""): v for k, v in cat_search.best_params_.items()},
+    )),
+])
+ext_pipe.fit(get_feature_frame(extended_df), extended_df["average_utilization"].values)
+current_rmse = metrics(y_test, cat_best.predict(X_test))["rmse"]
+extended_metrics = metrics(y_test, ext_pipe.predict(X_test))
+sensitivity = pd.DataFrame([
+    {"scenario": "current_train", **metrics(y_test, cat_best.predict(X_test))},
+    {"scenario": "extended_train", **extended_metrics},
+])
+sensitivity
+
+fig, ax = plt.subplots(figsize=(5, 4))
+plot_df = pd.DataFrame({
+    "scenario": ["Current train\\n(May 2023–Jun 2024)", "Extended train\\n(May 2023–Dec 2024)"],
+    "test_rmse": [current_rmse, extended_metrics["rmse"]],
+})
+sns.barplot(data=plot_df, x="scenario", y="test_rmse", ax=ax, color="#55A868")
+ax.set_title("Training Window Sensitivity (CatBoost Test RMSE)")
+ax.set_ylabel("Test RMSE")
+fig.savefig(figures_path("train_window_sensitivity.png"), dpi=150, bbox_inches="tight")
+plt.show()
+"""
+        ),
+        md(
             "## Individual learning — Member A: Academic calendar ablation\n\n"
             "Compare LightGBM with and without academic calendar flags to quantify their value."
         ),
