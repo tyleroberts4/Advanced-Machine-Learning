@@ -89,7 +89,12 @@ def add_cover(pdf: ReportPDF):
     pdf.set_text_color(*BLACK)
     pdf.cell(CONTENT_W, 8, "Advanced Machine Learning Final Project", align="C",
              new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.ln(60)
+    pdf.ln(10)
+
+    pdf.set_font("Helvetica", "", 12)
+    for name in ("Tyler Roberts", "Matt Kennedy", "Peter Mazolewski"):
+        pdf.cell(CONTENT_W, 7, name, align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.ln(40)
 
     # Bottom bar
     pdf.set_fill_color(*DARK_BLUE)
