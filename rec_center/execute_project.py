@@ -46,6 +46,7 @@ from rec_center_utils import (  # noqa: E402
     load_raw_data,
     save_clean_data,
     weekday_name_series,
+    plot_busiest_weeks_calendar,
 )
 
 sns.set_theme(style="whitegrid", context="notebook")
@@ -424,6 +425,8 @@ def run_eda(df: pd.DataFrame):
     fig.tight_layout()
     fig.savefig(figures_path("feature_correlation_heatmap.png"), dpi=150)
     plt.close(fig)
+
+    plot_busiest_weeks_calendar(df)
 
 
 def main():

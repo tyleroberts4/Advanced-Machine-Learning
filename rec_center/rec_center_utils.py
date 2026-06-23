@@ -74,10 +74,116 @@ CORRELATION_LABELS = {
     "average_utilization": "Average Utilization",
 }
 
+MONTH_SHORT_LABELS = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+]
+
+# Calendar-week bands highlighted on the seasonal week chart (inclusive).
+SEASONAL_WEEK_HIGHLIGHTS = [
+    (2, 4, "Jan return\n& resolutions"),
+    (9, 12, "Pre-spring\nbreak push"),
+    (17, 19, "Late spring\nquarter"),
+    (48, 52, "Pre-finals /\nholiday ramp"),
+]
+
 
 def weekday_name_series(timestamp: pd.Series) -> pd.Series:
     """Calendar weekday names from timestamps (Monday–Sunday)."""
     return timestamp.dt.day_name()
+
+
+def plot_busiest_weeks_calendar(df: pd.DataFrame) -> Path:
+    """Two-panel chart: busiest weeks of the year and month-by-week detail."""
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    ts = pd.to_datetime(df["timestamp"])
+    work = df.assign(
+        calendar_week=ts.dt.isocalendar().week.astype(int),
+        calendar_year=ts.dt.isocalendar().year.astype(int),
+        month=ts.dt.month,
+        week_of_month=((ts.dt.day - 1) // 7 + 1),
+    )
+
+    weekly_by_year = (
+        work.groupby(["calendar_year", "calendar_week"], observed=True)["average_utilization"]
+        .mean()
+        .reset_index()
+    )
+    week_of_year = (
+        weekly_by_year.groupby("calendar_week")["average_utilization"]
+        .mean()
+        .sort_index()
+    )
+
+    month_week = (
+        work.groupby(["month", "week_of_month"], observed=True)["average_utilization"]
+        .mean()
+        .unstack()
+        .reindex(range(1, 13))
+    )
+    month_week.index = MONTH_SHORT_LABELS
+    month_week.columns = [f"Week {int(c)}" for c in month_week.columns]
+
+    fig, axes = plt.subplots(2, 1, figsize=(12, 9), gridspec_kw={"height_ratios": [1.1, 1.25]})
+
+    ax0 = axes[0]
+    weeks = week_of_year.index.to_numpy()
+    ax0.bar(weeks, week_of_year.values, color="#4C72B0", width=0.85, zorder=2)
+    ax0.set_title("Busiest Weeks of the Year (Averaged Across Academic Years)")
+    ax0.set_xlabel("Calendar Week of Year")
+    ax0.set_ylabel("Average Utilization")
+    ax0.set_xlim(0.5, 53)
+    ax0.set_xticks(range(2, 53, 4))
+
+    ymax = float(week_of_year.max()) * 1.12
+    ax0.set_ylim(0, ymax)
+    for start, end, label in SEASONAL_WEEK_HIGHLIGHTS:
+        ax0.axvspan(start - 0.5, end + 0.5, color="#55A868", alpha=0.14, zorder=1)
+        ax0.text((start + end) / 2, ymax * 0.97, label, ha="center", va="top", fontsize=8, color="#2d5a3d")
+
+    for week_num, value in week_of_year.nlargest(5).items():
+        ax0.text(
+            week_num,
+            value + 0.006,
+            f"W{int(week_num)}",
+            ha="center",
+            va="bottom",
+            fontsize=7,
+            fontweight="bold",
+            color="#1f497d",
+        )
+
+    ax1 = axes[1]
+    sns.heatmap(
+        month_week,
+        cmap="YlOrRd",
+        ax=ax1,
+        annot=True,
+        fmt=".2f",
+        linewidths=0.4,
+        cbar_kws={"label": "Average Utilization"},
+    )
+    ax1.set_title("Average Utilization by Month and Week of Month")
+    ax1.set_xlabel("Week of Month (days 1–7, 8–14, …)")
+    ax1.set_ylabel("Month")
+
+    fig.tight_layout()
+    out = figures_path("busiest_weeks_calendar.png")
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
 
 REC_CENTER_OPEN = time(6, 0)
 REC_CENTER_CLOSE = time(23, 30)

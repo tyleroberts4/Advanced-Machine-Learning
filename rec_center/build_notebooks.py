@@ -220,6 +220,14 @@ fig.savefig(figures_path("weekday_hour_heatmap.png"), dpi=150, bbox_inches="tigh
 plt.show()
 """
         ),
+        md("## Seasonal week patterns"),
+        code(
+            """
+from rec_center_utils import plot_busiest_weeks_calendar
+
+plot_busiest_weeks_calendar(df)
+"""
+        ),
         md("## Additional insights for modeling"),
         code(
             """

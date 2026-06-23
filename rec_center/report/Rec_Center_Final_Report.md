@@ -85,6 +85,10 @@ Not all areas are equally crowded. The **Track Exercise Room** averages **0.58**
 
 Monthly trends show visible dips during **summer** and **winter break**, and higher usage during active academic quarters. August 2023 and summer months consistently show lower utilization, while May 2024 showed the highest monthly average — likely reflecting pre-finals and end-of-quarter activity.
 
+The chart below combines two views: calendar weeks of the year (averaged across academic years) and a month-by-week grid. Early **January** weeks stand out as a post-break surge consistent with New Year's resolution traffic, while **late February and early March** (weeks 9–12) show elevated use ahead of spring break. The bottom panel lets you compare individual weeks within each month — for example, the first two weeks of January versus the quieter third week once classes settle in.
+
+![Busiest Weeks of the Year](../figures/busiest_weeks_calendar.png)
+
 ![Monthly Utilization Trend](../figures/monthly_utilization_trend.png)
 
 ![Utilization by Academic Period](../figures/utilization_by_academic_period.png)
